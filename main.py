@@ -1,5 +1,5 @@
-import random
-import math
+import random, math
+from os import system
 # ===============================================
 # === DEFINIÇÕES DE CLASSES AUXILIARES ===
 # ===============================================
@@ -34,7 +34,7 @@ class Position:
 	def __sub__(self, other):
 		return Position(self.x - other.x, self.y - other.y)
 	@staticmethod
-	def duple(number):
+	def xy(number):
 		return Position(number,number)
 	def rotate(self, direction):
 		if direction == 'r': # (-1,-1) -> (0,-1) -> (1,-1) -> (1,0) -> (1,1) -> (0,1) -> (-1,1) -> (-1,0)
@@ -56,7 +56,7 @@ class Position:
 		y = random.randint(min.y, max.y)
 		return Position(x,y)
 	
-# --- Classe Spell (Feitiços) ---
+# --- Class Spell ---
 class Spell:
 	
 	@property
@@ -137,13 +137,13 @@ class Extras:
 	
 	
 	def LogCoordinates(self, player,  world,  boolean=False):
-		print("Sua posicao: ", end="")
+		print("Position: ", end="")
 		ex = Extras()
 		ex.LogCoordinate( player,  world,  boolean)
 		
 		e = ex.GetClosestEnemyPos(player,  world,   False)
 		if e != None:
-			print("posicao do Inimigo: ", end="")
+			print("Postion of closest enemy: ", end="")
 			e.Logposition()
 		
 		return None
@@ -163,13 +163,13 @@ class Extras:
 			spell.Cast(player,world)
 		return cast
 	def LearnSpellConstructor(self, spell):
-		def learn(player:Player, world, boolean=False):
+		def learn(player, world, boolean=False):
 			player.spells.append(spell) if not spell in player.spells else ...
 		return learn
-	def ReceiveRandomConstructor(self, loot_pool:list['Item']):
+	def ReceiveRandomConstructor(self, loot_pool:list['ItemType']):
 		def receive(player, world, boolean=False):
 			Itype = random.choice(loot_pool)
-			it = Itype.itemType(1)
+			it = Itype.Item(1)
 			it.addToPlayer(player)
 		return receive
 	def DashConstructor(self, distance):
@@ -285,13 +285,18 @@ class Item:
 		self.uses = _itemType.uses
 		self.extra = extra
 		
-	def isIn(self,player,returnIts=False):
+	def isIn(self,player:'Player'):
 		iTs = []
 		for it in player.items:
 			list.append(iTs,it.itemType)
-		return (self.itemType in iTs) if not returnIts else iTs
+		return (self.itemType in iTs)
+	def playerInventoryType(self,player) -> list[ItemType]:
+		iTs = []
+		for it in player.items:
+			iTs.append(it.itemType)
+		return iTs
 	def addToPlayer(self,player):
-		iTs = self.isIn(player,True)
+		iTs: list = self.playerInventoryType(player)
 		if self.isIn(player):
 			ind = iTs.index(self.itemType)
 			item = player.items[ind]
@@ -300,7 +305,7 @@ class Item:
 			player.items.append(self)
 
 
-	def Utilize(self, player, world):
+	def utilize(self, player, world):
 		if self.itemType.function != None:
 			self.itemType.function(player, world)
 			
@@ -324,7 +329,7 @@ class Drop:
 	def __init__(self,pos,item_type,quantity):
 
 		self.pos = pos
-		self.item = item_type.Item(quantity)
+		self.item:Item = item_type.Item(quantity)
 	
 
 	
@@ -333,6 +338,7 @@ class Drop:
 		
 		self.item.addToPlayer(player)
 		world.RemoveBeing(self)
+		print(f'Collected {self.item.quantity} {self.item.name}s')
 	def __str__(self):
 		return 'Drop:  pos:'+ str(self.pos) + 'Item: ' + str(self.item) 
 	def __repr__(self):
@@ -342,7 +348,7 @@ class Drop:
 			return False
 		return self.pos == other.pos and self.item == other.item
 # ===============================================
-# --- Classe Enemy (Inimigo) ---
+# --- Class Enemy ---
 
 class Enemy:
 
@@ -415,7 +421,7 @@ class Enemy:
 				self.x = tempX
 				self.y = tempY
 		else:
-			stun -= 1
+			self.stun -= 1
 
 	def distance_to(self, target_pos):
 		return abs(self.x - target_pos.x) + abs(self.y - target_pos.y)
@@ -455,8 +461,8 @@ class Player:
 		self.itemIndex = 0
 		self.money = 0
 		self.spells = _spells
-		self.items = []
-		self.world = world
+		self.items:list[Item] = []
+		self.world: World = world
 		world.AddBeing(self)
 		
 	def reset(self):
@@ -507,6 +513,7 @@ class Player:
 				blocked = True
 				break
 		for d in world.items:
+			d:'Drop'
 			if d.pos == Position(tempX, tempY):
 				d.collect(self,world)
 		for s in world.stairs:
@@ -542,20 +549,20 @@ class Player:
 
 		if spell.damage != 0:
 			# Adição de strings
-			msg = "Inimigo em " + str((enemy.x - self.x  ,   self.y - enemy.y)) + " tomou " + str(spell.damage) + " de dano. Saude: " + str(enemy.health)
+			msg = f"Enemy at {enemy.pos - self.pos} took {(spell.damage)} damage."
 			print(msg)
 		else:
-			print("Inimigo em (" + str(enemy.x - self.x) + ", " + str(self.y - enemy.y) + ")")
+			print(f"Enemy at {enemy.pos-self.pos}")
 
 
 		if spell.stun > 0:
 			# Adição de strings
-			print(", Atordoamento: +" + str(spell.stun) + " (Total: " + str(enemy.stun) + ")")
+			print(f"Stun: +{str(spell.stun)}")
 
 		if enemy.health <= 0:
-			world.RemoveBeings(self)
+			world.RemoveBeing(enemy)
 			# Adição de strings
-			print("-> Inimigo em " + str((enemy.x - self.x,  self.y - enemy.y)) + " derrotado!")
+			print(f"-> Enemy at {((enemy.x - self.x,  self.y - enemy.y))} defeated")
 		
 	
 	
@@ -570,7 +577,7 @@ class Player:
 
 		if (self.mana - spell.manaCost < 0):
 			# Adição de strings
-			print("Mana insuficiente para lancar " + spell.name + ". Precisa de " + str(spell.manaCost) + ", tem " + str(self.mana) + ".")
+			print(f"Not enough mana to cast {spell.name} ({self.mana}/{spell.manaCost}).")
 			return
 		if useMana:
 			self.mana -= spell.manaCost
@@ -581,14 +588,14 @@ class Player:
 			
 			# Adição de strings
 			if spell.Heals:
-				print(spell.name + " lancado! HP do Player: " + str(self.health) + ", Mana: " + str(self.mana) + ".")
+				print(f"{spell.name} cast\nHealth: {str(self.health)}\nMana: {str(self.mana)}.")
 			elif spell.Recoils:
-				print(spell.name + " lancado! Player atingido por recuo! HP do Player: " + str(self.health))
+				print(f"{spell.name} cast\nPlayer hit by recoil!\nHealth: {str(self.health)}")
 		
 
 		if (spell.Damaging or spell.Healing) and spell.directed:
 			if self.last_move == Position(0, 0):
-				print("Nenhuma direcao para atirar.")
+				print("No direction to shoot at.")
 				return
 			
 			(dx, dy) = self.last_move
@@ -602,12 +609,12 @@ class Player:
 				if targetEnemy != None:
 					self.ApplyDamageAndEffects(targetEnemy, spell)
 					# Adição de strings
-					print(spell.name + " disparado na direcao " + str((dx ,   dy))+ " e atingiu " + str((self.x - targetEnemy.x , self.y - targetEnemy.y)) + "!")
+					print(f"{spell.name} was cast in the direction {(dx, dy)} and hit {str((self.x - targetEnemy.x , self.y - targetEnemy.y))}")
 					target_hit = True
 					break
 			
 			if not target_hit:
-				print(spell.name + " disparado na direcao (" + str(dx) + ", " + str(dy) + ") mas nao atingiu nada no alcance " + str(spell.range) + ".")
+				print(f"{spell.name} was cast in the direction {(dx, dy)} but didn't hit anything")
 		
 		elif (spell.Damaging or spell.Healing) and not spell.directed:
 			targets = self.GetCloseEnemies(spell.range)
@@ -626,8 +633,8 @@ class Player:
 	def ChangeSpell(self):
 		if len(self.spells) > 1:
 			self.spellIndex = (self.spellIndex + 1) % len(self.spells)
-			print("\033[H\033[J")
-			print("Feitico alterado para " + self.CurrentSpell.name + ".")
+
+			print(f"Spell swapped to {self.CurrentSpell.name}.")
 			return self.CurrentSpell
 	
 	def Logposition(self):
@@ -636,13 +643,13 @@ class Player:
 	def ChangeItem(self):
 		if len(self.items) > 1:
 			self.itemIndex = (self.itemIndex + 1) % len(self.items)
-			print("\033[H\033[J")
+
 			print("Item alterado para " + self.CurrentItem.name + ".")
 			return self.CurrentItem
 	def UseItem(self):
 		world = self.world
 		item = self.CurrentItem
-		item.Utilize(self,world)
+		item.utilize(self,world)
 	def __str__(self):
 		return ('Player: '+ str(self.pos))
 	def __repr__(self):
@@ -673,7 +680,7 @@ class World:
 		return self.enemies + self.players + self.stairs + self.walls
 		
 	def DrawWorld(self, drawWidth, drawHeight, player):
-		"""Desenha a área do mundo vista pelo jogador."""
+		"""Draws the are viewed by the player."""
 		
 		viewX = player.x - (drawWidth // 2)
 		viewY = player.y - (drawHeight // 2)
@@ -707,7 +714,9 @@ class World:
 		stair = next((s for s in self.stairs if s.pos == pos), None)
 		if stair != None:
 			return 'k'
-
+		wall = next((w for w in self.walls if w.pos == pos), None)
+		if wall != None:
+			return '#'
 		posX, posY = pos 
 		halfSize = self.worldSize / 2
 
@@ -774,7 +783,7 @@ class World:
 	def SpawnStairs(self, pos, leads_to):
 		for o in self.beings:
 			if o.pos == pos:
-				raise ValueError("Posicao " + str(pos) + " ja esta ocupada.")
+				raise ValueError(f"Position {pos} already occupied.")
 		
 		stairs = Stairs(pos, self, leads_to)
 		self.AddBeing(stairs)
@@ -785,7 +794,7 @@ class World:
 		return s	
 	def SpawnStairsRandom(self, loot_pool=[Items.SmallHealthPotionType],rare_loot_pool=[Items.SpellScrollCrateType],hasStairs=False,limit=5,repetitions=0):
 		s =  self.SpawnStairsWorld(
-			Position.random(Position.duple(-self.worldSize//2), Position.duple(self.worldSize//2)),
+			Position.random(Position.xy(-self.worldSize//2), Position.xy(self.worldSize//2)),
 			size=random.randint(20,50),
 			enemy_count=random.randint(5,15),
 			loot_pool=loot_pool,
@@ -822,7 +831,6 @@ class Stairs:
 		return 'S: '+ str((self.pos,self.leads_to))
 	def Use(self, player):
 		player.ChangeWorld(self.leads_to)
-		print("\033[H\033[J")
 	@staticmethod
 	def createStairWithWorld(pos,curr_world,size,enemy_count=10, loot_pool=[Items.SmallHealthPotionType],item_count=10,rare_loot_pool=[],rare_item_count=2):
 		w = World(size)
@@ -837,10 +845,9 @@ class Stairs:
 class WinStairs(Stairs):
 	def Use(self, player):
 		player.win = True
-		print("\033[H\033[J")
 
 # ===============================================
-# === GAME LOOP PRINCIPAL ===
+# === GAME LOOP ===
 # ===============================================
 
 class Keys:
@@ -855,7 +862,7 @@ class Keys:
 		self.r = False
 		self.f = False
 	def check_keys(k):
-		user_input = input("Acao: ").strip().lower()
+		user_input = input("Action: ").strip().lower()
 		
 		k.a = k.w = k.s = k.d = k.e = k.q = k.r = k.esc = k.f = False
 
@@ -879,7 +886,6 @@ if __name__ == '__main__':
 	keys = Keys()
 	loot_pool = [Items.SmallHealthPotionType, Items.SmallManaPotionType,Items.ExplosionScrollType, Items.DashScrollType]
 	rare_loot_pool = [Items.DashGrimoireType,Items.PotionCrateType, Items.ForceGrimoireType,Items.SpellScrollCrateType,Items.CompassType]
-	loot_pool_2 = [Items.SmallHealthPotionType, Items.SmallManaPotionType, Items.ForceScrollType]
 
 	world1 = World(24)
 	player = Player(
@@ -905,7 +911,7 @@ if __name__ == '__main__':
 	
 
 	# --- Game Loop ---
-	print("\nComandos: A/S/W/D (Mover), E (Feitico), Q (Trocar Feitico), R (Trocar Item), F (Item) X/ESC (Sair)")
+	print("\nCommands: A/S/W/D (Walk), E (Spell), Q (Swap Spell), R (Swap Item), F (Item), X/ESC (Quit)")
 
 
 	while running:
@@ -916,7 +922,7 @@ if __name__ == '__main__':
 		
 		if (keys.esc):
 			running = False	
-			print("Saindo do jogo...")
+			print("Exiting...")
 			break
 			
 		if keys.a:
@@ -958,11 +964,11 @@ if __name__ == '__main__':
 		if moved or keys.e  or keys.f or keys.r or keys.q:
 			player.world.DrawWorld(9, 9, player) 
 		if player.CheckDeath():
-			print('Game Over!!!!!!!')
+			print('You lost...')
 			running = False
 			break
 		if player.win:
-			print('Você venceu o jogo!')
+			print('You won!')
 			running = False
 			break
 		
@@ -971,14 +977,13 @@ if __name__ == '__main__':
 		print("\n")
 		print("-" * 35)
 		# Adição de strings para a saída de status
-		print("HP: " + str(player.health) + " | Mana: " + str(player.mana) + " | Feitiço: " + player.CurrentSpell.name + " | Item: " + str(player.CurrentItem))
+		print("HP: " + str(player.health) + " | Mana: " + str(player.mana) + " | Spell: " + player.CurrentSpell.name + " | Item: " + str(player.CurrentItem))
 		print("-" * 35)
 
 
 '''
 --TODO--
 Loja ($)
-
 
 
 
